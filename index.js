@@ -20,9 +20,6 @@ if (paths.length === 0) {
 
 // store just the first 45 digits of MEMO
 // Transferência enviada pelo Pix - EDUARDA LIMA 
-// Transferência enviada pelo Pix - Kauan Portella losekam
-
-
 
 
 /**
