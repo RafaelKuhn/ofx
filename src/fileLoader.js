@@ -1,7 +1,5 @@
 
-
-// TODO: decent data structure
-class _FileContent {
+export class ReadFile {
 	/**
 	 * @param {String} name
 	 * @param {String} content
@@ -12,54 +10,73 @@ class _FileContent {
 	}
 }
 
-
-const wrapper = document.querySelector(".wrapper");
-const dropArea = document.querySelector(".dropArea");
-const fileInput = document.getElementById("fileInput");
-
-const listingsUl = document.getElementById("fileList");
-const fileLiTemplate = document.getElementById("liTemplate");
-
-fileInput.addEventListener("change", () => {
-	for (const file of fileInput.files) {
-		queryFile(file);
-	}
-})
+/**
+ * @callback FileReadCb
+ * @param {ReadFile}
+ */
 
 const preventDefault = e => e.preventDefault();
 const highlightBorder = () => {
-	dropArea.classList.add("highlight-border");
-	dropArea.classList.remove("unhighlight-border");
+	html.dropArea.classList.add("highlight-border");
+	html.dropArea.classList.remove("unhighlight-border");
 }
 
 const unHighlightBorder = () => {
-	dropArea.classList.remove("highlight-border");
-	dropArea.classList.add("unhighlight-border");
+	html.dropArea.classList.remove("highlight-border");
+	html.dropArea.classList.add("unhighlight-border");
 }
 
-export const initFileLoader = () => {
+const html = {
+	dropArea: null,
+	listingsUl: null,
+	fileLiTemplate: null,
+}
+
+if (typeof document !== "undefined") {
+	html.dropArea = document?.querySelector(".dropArea");
+	html.listingsUl = document?.getElementById("fileList");
+	html.fileLiTemplate = document?.getElementById("liTemplate");
+}
+
+
+/**
+ * @param {FileReadCb} onFileRead
+ */
+export const initHtmlFileReader = (onFileRead) => {
+
+	const wrapper = document.querySelector(".wrapper");
+	const fileInput = document.getElementById("fileInput");
 
 	const evts = [ "dragenter", "dragover", "dragleave", "drop" ];
-	evts.forEach(evtName => dropArea.addEventListener(evtName, preventDefault));
+	evts.forEach(evtName => html.dropArea.addEventListener(evtName, preventDefault));
 	evts.forEach(evtName => wrapper.addEventListener(evtName, preventDefault));
 	
-	[ "dragenter", "dragover" ].forEach(evtName => dropArea.addEventListener(evtName, highlightBorder));
-	[ "dragleave", "drop"     ].forEach(evtName => dropArea.addEventListener(evtName, unHighlightBorder));
+	[ "dragenter", "dragover" ].forEach(evtName => html.dropArea.addEventListener(evtName, highlightBorder));
+	[ "dragleave", "drop"     ].forEach(evtName => html.dropArea.addEventListener(evtName, unHighlightBorder));
 	unHighlightBorder();
 
-	wrapper.addEventListener("drop", evt => onDrop(evt));
+	wrapper.addEventListener("drop", evt => onDropFile(evt, onFileRead));
+
+	fileInput.addEventListener("change", () => {
+		for (const file of fileInput.files) {
+			queryFile(file, onFileRead);
+		}
+	});
 }
 
 /** @type {Set.<String>} */
 const fileSet = new Set();
 
-/** @param {DragEvent} evt */
-const onDrop = evt => {
+/**
+ * @param {DragEvent} evt
+ * @param {FileReadCb} onFileRead
+ */
+const onDropFile = (evt, onFileRead) => {
 	evt.preventDefault()
 	/** @type {DataTransfer} */
 	const dt = evt.dataTransfer;
 	for (const file of dt.files) {
-		queryFile(file);
+		queryFile(file, onFileRead);
 	}
 }
 
@@ -77,8 +94,11 @@ class FileListing {
 /** @type {Array.<FileListing>} */
 const fileListings = [];
 
-/** @param {File} file */
-const queryFile = file => {
+/**
+ * @param {File} file
+ * @param {FileReadCb} onFileRead
+ */
+const queryFile = (file, onFileRead) => {
 
 	const dotInd = file.name.lastIndexOf(".");
 	const extension = dotInd === -1 ? "" : file.name.substring(dotInd);
@@ -92,8 +112,8 @@ const queryFile = file => {
 		return;
 	}
 
-	const templateCopy = fileLiTemplate.cloneNode(true);
-	listingsUl.appendChild(templateCopy);
+	const templateCopy = html.fileLiTemplate.cloneNode(true);
+	html.listingsUl.appendChild(templateCopy);
 	templateCopy.removeAttribute("id");
 	templateCopy.querySelector(".name").textContent = file.name
 	const percentageSpan = templateCopy.querySelector(".percent");
@@ -149,9 +169,6 @@ const queryFile = file => {
 			}
 
 			fileListings.splice(listingIndex, 1);
-			console.log(fileListings.length);
-			console.log(fileSet.size);
-			
 		}
 
 		closeAnchor.addEventListener("click", removeFromLists);
@@ -162,12 +179,11 @@ const queryFile = file => {
 			return 0;
 		});
 
-		console.log(fileListings);
-		console.log(" ");
 		for (const listingInList of fileListings) {
-			listingsUl.appendChild(listingInList.element);
+			html.listingsUl.appendChild(listingInList.element);
 		}
 
+		onFileRead(new ReadFile(file.name, fileContent));
 	});
 
 	reader.readAsText(file, "UTF-8");

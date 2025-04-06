@@ -1,32 +1,34 @@
+import { ReadFile } from "./fileLoader.js";
+import { isUndef } from "./utils.js";
 
 
 // store just the first 45 digits of MEMO
 // Transferência enviada pelo Pix - EDUARDA LIMA 
 
+// BANKMSGSRSV1: Array.<> is actually not an array but an object with numeric keys
+
+
 /**
-BANKMSGSRSV1: Array.<> is actually not an array but an object with numeric keys
 @typedef {{
-	SIGNONMSGSRSV1: {
-		SONRS: {
-			STATUS: { CODE: String, SEVERITY: String },
-			DTSERVER: String
-			LANGUAGE: String
-		}
-	},
-	BANKMSGSRSV1: Array.<{
-		CURDEF: String,
-		BANKACCTFROM: { BANKID: String, ACCTID: String, ACCTTYPE: String },
-		BANKTRANLIST: {
-			DTSTART: String,
-			DTEND: String,
-			STMTTRN: Array.<{
-				TRNTYPE:  String,
-				DTPOSTED: String,
-				TRNAMT:   String,
-				NAME:     String,
-				MEMO:     String,
-				FITID:    String,
-			}>,
+	//// BANKMSGSRSV1.STMTTRNRS.STMTRS[0].CURDEF
+	BANKMSGSRSV1: {
+		STMTTRNRS: {
+			STMTRS: Array.<{
+				BANKACCTFROM: { BANKID: String, ACCTID: String, ACCTTYPE: String },
+				BANKTRANLIST: {
+					DTSTART: String,
+					DTEND: String,
+					STMTTRN: Array.<{
+						TRNTYPE:  String,
+						DTPOSTED: String,
+						TRNAMT:   String,
+						NAME:     String,
+						MEMO:     String,
+						FITID:    String,
+					}>
+				},
+				CURDEF: String,
+			}>
 		},
 		LEDGERBAL: { BALAMT: String, DTASOF: String, },
 		BALLIST: {
@@ -37,7 +39,14 @@ BANKMSGSRSV1: Array.<> is actually not an array but an object with numeric keys
 				VALUE: String,
 			}>
 		}
-	}>
+	},
+	SIGNONMSGSRSV1: {
+		SONRS: {
+			DTSERVER: String
+			LANGUAGE: String
+			STATUS: { CODE: String, SEVERITY: String },
+		}
+	},
 }} RawOfxTypedef
 */
 
@@ -113,17 +122,64 @@ class Bal {
 	}
 }
 
+export const xmlParserOptions =  {
+	parseTagValue: false,
+}
+
+
+
+/**
+ * @param {ReadFile} readFile
+ * @returns {Ofx}
+ */
+export const parseOfxInWeb = (readFile, fxpXmlParser) => {
+
+	const xmlFileData = parseXmlInWeb(readFile, fxpXmlParser);
+	if (!xmlFileData) return;
+
+	const parsedOfxObj = parseOfxObj(xmlFileData);
+	return parsedOfxObj;
+}
+
+
+/**
+ * @param {ReadFile} readFile
+ * @param {*} fxpXmlParser
+ * @returns {RawOfxTypedef|false}
+ */
+const parseXmlInWeb = (readFile, fxpXmlParser) => {
+	const fileContent = readFile.content
+	const onlyXmlString = cutAfterOfxTagRemovingHeader(fileContent);
+	if (!onlyXmlString) {
+		alert(`error: no '<OFX>' tag found`);
+		return false;
+	}
+
+	const validation = fxp.XMLValidator.validate(onlyXmlString);
+	if (validation.err) {
+		alert(`error: ${validation.err.msg}\nline ${validation.err.line}`);
+		return false;
+	}
+
+	const parsedXml = fxpXmlParser.parse(onlyXmlString);
+	if (!parsedXml.OFX) {
+		alert(`error: needs to start with an '<OFX>' element`);
+		return false;
+	}
+
+	return parsedXml.OFX;
+}
+
 /**
  * @param {RawOfxTypedef} ofxData
  * @returns {Ofx}
  */
-export const parseOfx = ofxData => {
+export const parseOfxObj = ofxData => {
 
-	const notAListOfCurrencies = isUndef(ofxData?.BANKMSGSRSV1?.[0]);
-	if (notAListOfCurrencies) {
-		const onlyCurrency = ofxData?.BANKMSGSRSV1;
-		ofxData.BANKMSGSRSV1 = { };
-		ofxData.BANKMSGSRSV1['0'] = onlyCurrency;
+	if (!Array.isArray(ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS)) {
+		const val = ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS;
+		ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS = [];
+		ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS.push(val);
 	}
 
 	const ofx = new Ofx();
@@ -131,8 +187,10 @@ export const parseOfx = ofxData => {
 	ofx.emittedDate = parseDate(ofxData?.SIGNONMSGSRSV1?.SONRS?.DTSERVER);
 	ofx.transactionCurrencyObjs = [];
 
-	for (const currencyInd in ofxData.BANKMSGSRSV1) {
-		const rawBankTransfersOfCurrency = ofxData?.BANKMSGSRSV1?.[currencyInd];
+	const stmtrsList = ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS;
+	for (const currencyInd in stmtrsList) {
+		const rawBankTransfersOfCurrency = stmtrsList[currencyInd];
+
 		const currency   = rawBankTransfersOfCurrency?.CURDEF;
 		const acctType   = rawBankTransfersOfCurrency?.BANKACCTFROM?.ACCTTYPE;
 		const startDate  = parseDate(rawBankTransfersOfCurrency?.BANKTRANLIST?.DTSTART);
@@ -193,11 +251,27 @@ export const parseOfx = ofxData => {
 		// console.log(filterTransactionCurrencyObj(transactionCurrencyObj));
 		ofx.transactionCurrencyObjs.push(transactionCurrencyObj);
 	}
+
+	return ofx;
 }
 
-const isUndef = arg => typeof arg === "undefined";
+/**
+ * @param {string} fileContent
+ * @returns {string|false}
+ */
+const cutAfterOfxTagRemovingHeader = fileContent => {
+	const lower = fileContent.toLowerCase();
+	const ofxStart = lower.indexOf("<ofx>")
+	if (ofxStart === -1) {
+		return false;
+	}
+
+	return fileContent.slice(ofxStart);
+}
+
 
 /** @param {TransactionCurrencyObj} */
+export
 const filterTransactionCurrencyObj = ({ currency, startDate, endDate, startBalance, endBalance }) =>
 																		 ({ currency, startDate, endDate, startBalance, endBalance })
 
