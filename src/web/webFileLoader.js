@@ -1,19 +1,18 @@
+import { ReadFile } from "../types.js";
 
-export class ReadFile {
-	/**
-	 * @param {String} name
-	 * @param {String} content
-	 */
-	constructor(name, content) {
-		this.name = name;
-		this.content = content;
-	}
-}
+
+if (typeof document === "undefined") throw new Error("File supposed to run only for the web");
 
 /**
  * @callback FileReadCb
  * @param {ReadFile}
  */
+
+const html = {
+	dropArea: document.querySelector(".dropArea"),
+	listingsUl: document.getElementById("fileList"),
+	fileLiTemplate: document.getElementById("liTemplate"),
+}
 
 const preventDefault = e => e.preventDefault();
 const highlightBorder = () => {
@@ -26,23 +25,11 @@ const unHighlightBorder = () => {
 	html.dropArea.classList.add("unhighlight-border");
 }
 
-const html = {
-	dropArea: null,
-	listingsUl: null,
-	fileLiTemplate: null,
-}
-
-if (typeof document !== "undefined") {
-	html.dropArea = document?.querySelector(".dropArea");
-	html.listingsUl = document?.getElementById("fileList");
-	html.fileLiTemplate = document?.getElementById("liTemplate");
-}
-
 
 /**
  * @param {FileReadCb} onFileRead
  */
-export const initHtmlFileReader = (onFileRead) => {
+export const initHtmlFileReader = onFileRead => {
 
 	const wrapper = document.querySelector(".wrapper");
 	const fileInput = document.getElementById("fileInput");

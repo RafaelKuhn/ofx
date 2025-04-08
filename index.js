@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
-import { Ofx, xmlParserOptions, parseDate, parseOfxObj, filterTransactionCurrencyObj } from './src/ofxParser.js';
+import { Ofx, xmlParserOptions, parseOfxObj, filterTransactionCurrencyObj } from './src/ofxParser.js';
 import { XMLParser, XMLBuilder, XMLValidator } from 'fast-xml-parser';
-
-
 
 
 class Settings {

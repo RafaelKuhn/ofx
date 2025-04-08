@@ -1,5 +1,6 @@
-import { initHtmlFileReader, ReadFile } from './fileLoader.js';
+import { initHtmlFileReader } from './web/webFileLoader.js';
 import { filterTransactionCurrencyObj, parseOfxInWeb, xmlParserOptions } from './ofxParser.js';
+import { ReadFile } from "./types.js";
 import './style.css'
 
 

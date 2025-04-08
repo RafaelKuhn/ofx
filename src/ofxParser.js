@@ -1,4 +1,4 @@
-import { ReadFile } from "./fileLoader.js";
+import { ReadFile } from "./types.js";
 import { isUndef } from "./utils.js";
 
 
