@@ -1,54 +1,7 @@
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { ReadFile } from "./types.js";
 import { isUndef } from "./utils.js";
 
-
-// store just the first 45 digits of MEMO
-// Transferência enviada pelo Pix - EDUARDA LIMA 
-
-// BANKMSGSRSV1: Array.<> is actually not an array but an object with numeric keys
-
-
-/**
-@typedef {{
-	//// BANKMSGSRSV1.STMTTRNRS.STMTRS[0].CURDEF
-	BANKMSGSRSV1: {
-		STMTTRNRS: {
-			STMTRS: Array.<{
-				BANKACCTFROM: { BANKID: String, ACCTID: String, ACCTTYPE: String },
-				BANKTRANLIST: {
-					DTSTART: String,
-					DTEND: String,
-					STMTTRN: Array.<{
-						TRNTYPE:  String,
-						DTPOSTED: String,
-						TRNAMT:   String,
-						NAME:     String,
-						MEMO:     String,
-						FITID:    String,
-					}>
-				},
-				CURDEF: String,
-			}>
-		},
-		LEDGERBAL: { BALAMT: String, DTASOF: String, },
-		BALLIST: {
-			BAL: Array.<{
-				NAME: String,
-				DESC: String,
-				BALTYPE: String,
-				VALUE: String,
-			}>
-		}
-	},
-	SIGNONMSGSRSV1: {
-		SONRS: {
-			DTSERVER: String
-			LANGUAGE: String
-			STATUS: { CODE: String, SEVERITY: String },
-		}
-	},
-}} RawOfxTypedef
-*/
 
 export class Ofx {
 	/**
@@ -122,11 +75,24 @@ class Bal {
 	}
 }
 
-export const xmlParserOptions =  {
+const xmlParserOptions =  {
 	parseTagValue: false,
 }
 
+/**
+ * @callback ofxParseFunction
+ * @param {ReadFile} readFile
+ * @returns {Ofx}
+ */
 
+
+/**
+ * @returns {ofxParseFunction}
+ */
+export const makeOfxParser = () => {
+	const xmlParser = new XMLParser(xmlParserOptions);
+	return readFile => parseOfxInWeb(readFile, xmlParser);
+}
 
 /**
  * @param {ReadFile} readFile
@@ -144,7 +110,7 @@ export const parseOfxInWeb = (readFile, fxpXmlParser) => {
 
 /**
  * @param {ReadFile} readFile
- * @param {*} fxpXmlParser
+ * @param {XMLParser} fxpXmlParser
  * @returns {RawOfxTypedef|false}
  */
 const parseXmlInWeb = (readFile, fxpXmlParser) => {
@@ -155,7 +121,7 @@ const parseXmlInWeb = (readFile, fxpXmlParser) => {
 		return false;
 	}
 
-	const validation = fxp.XMLValidator.validate(onlyXmlString);
+	const validation = XMLValidator.validate(onlyXmlString);
 	if (validation.err) {
 		alert(`error: ${validation.err.msg}\nline ${validation.err.line}`);
 		return false;
@@ -169,6 +135,55 @@ const parseXmlInWeb = (readFile, fxpXmlParser) => {
 
 	return parsedXml.OFX;
 }
+
+
+// store just the first 45 digits of MEMO
+// Transferência enviada pelo Pix - EDUARDA LIMA 
+
+// BANKMSGSRSV1: Array.<> is actually not an array but an object with numeric keys
+
+/**
+@typedef {{
+	//// BANKMSGSRSV1.STMTTRNRS.STMTRS[0].CURDEF
+	BANKMSGSRSV1: {
+		STMTTRNRS: {
+			STMTRS: Array.<{
+				BANKACCTFROM: { BANKID: String, ACCTID: String, ACCTTYPE: String },
+				BANKTRANLIST: {
+					DTSTART: String,
+					DTEND: String,
+					STMTTRN: Array.<{
+						TRNTYPE:  String,
+						DTPOSTED: String,
+						TRNAMT:   String,
+						NAME:     String,
+						MEMO:     String,
+						FITID:    String,
+					}>
+				},
+				CURDEF: String,
+			}>
+		},
+		LEDGERBAL: { BALAMT: String, DTASOF: String, },
+		BALLIST: {
+			BAL: Array.<{
+				NAME: String,
+				DESC: String,
+				BALTYPE: String,
+				VALUE: String,
+			}>
+		}
+	},
+	SIGNONMSGSRSV1: {
+		SONRS: {
+			DTSERVER: String
+			LANGUAGE: String
+			STATUS: { CODE: String, SEVERITY: String },
+		}
+	},
+}} RawOfxTypedef
+*/
+
 
 /**
  * @param {RawOfxTypedef} ofxData

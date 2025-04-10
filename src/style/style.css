@@ -59,7 +59,9 @@ a {
   justify-content: center;
   align-items: center;
 
-  width: 512px;
+  /* width: 512px; */
+  /* width: 780px; */
+  width: 50vw;
   max-width: 100%;
   height: fit-content;
 

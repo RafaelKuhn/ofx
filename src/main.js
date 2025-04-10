@@ -1,26 +1,18 @@
+import './style/style.css'
+import { filterTransactionCurrencyObj, makeOfxParser } from './ofxParser.js';
 import { initHtmlFileReader } from './web/webFileLoader.js';
-import { filterTransactionCurrencyObj, parseOfxInWeb, xmlParserOptions } from './ofxParser.js';
-import { ReadFile } from "./types.js";
-import './style.css'
+import { chartOfx } from './web/webCharter.js';
 
 
 const init = () => {
-	if (!fxp) {
-		console.error(`fxp library not found!`);
-		return;
-	}
+	const parseOfx = makeOfxParser();
 
-	const fxpXmlParser = new fxp.XMLParser(xmlParserOptions);
-	initHtmlFileReader(readFile => onFileRead(readFile, fxpXmlParser));
-}
+	initHtmlFileReader(readFile => {
+		const ofx = parseOfx(readFile);
+		console.log(filterTransactionCurrencyObj(ofx.transactionCurrencyObjs[0]));	
+		chartOfx(ofx, readFile);
+	});
 
-/**
- * @param {ReadFile} readFile
- * @param {*} fxpXmlParser
- */
-const onFileRead = (readFile, fxpXmlParser) => {
-	const ofx = parseOfxInWeb(readFile, fxpXmlParser)
-	console.log(filterTransactionCurrencyObj(ofx.transactionCurrencyObjs[0]));
 }
 
 window.addEventListener("load", init);

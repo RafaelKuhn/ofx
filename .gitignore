@@ -139,3 +139,4 @@ dist
 # PROJECT
 *.ofx
 trash/*
+ofx/

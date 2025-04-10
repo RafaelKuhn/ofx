@@ -8,6 +8,12 @@ if (typeof document === "undefined") throw new Error("File supposed to run only 
  * @param {ReadFile}
  */
 
+// TODO: pass parameters 
+export class InstancedFile {
+	constructor(readFile) {
+	}
+}
+
 const html = {
 	dropArea: document.querySelector(".dropArea"),
 	listingsUl: document.getElementById("fileList"),
@@ -110,8 +116,9 @@ const queryFile = (file, onFileRead) => {
 		reader.abort();
 	}
 
-	const closeAnchor = templateCopy.querySelector(".close");
-	closeAnchor.addEventListener("click", deleteListItem);
+	// TODO: JOIN uncomment remove added file from lists, throw event
+	// const closeAnchor = templateCopy.querySelector(".close");
+	// closeAnchor.addEventListener("click", deleteListItem);
 
 	const reader = new FileReader();
 	reader.addEventListener("error", () => { deleteListItem(); alert(`Error reading '${file.name}': ${reader.error}`); });
@@ -158,7 +165,8 @@ const queryFile = (file, onFileRead) => {
 			fileListings.splice(listingIndex, 1);
 		}
 
-		closeAnchor.addEventListener("click", removeFromLists);
+		// TODO: JOIN uncomment remove added file from lists, throw event
+		// closeAnchor.addEventListener("click", removeFromLists);
 
 		fileListings.sort((a, b) => {
 			if (a.name < b.name) return -1;

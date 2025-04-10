@@ -1,12 +1,5 @@
-import vitePluginRequire from "vite-plugin-require";
+import { defineConfig } from 'vite'
 
-export default {
-	plugins: [
-
-		//  Must be placed after the vue plugin
-		// vitePluginRequire(),
-
-		// vite4、vite5
-		vitePluginRequire.default(),
-	],
-};
+export default defineConfig({
+  
+})
