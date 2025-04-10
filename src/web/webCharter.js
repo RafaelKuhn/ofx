@@ -1,29 +1,30 @@
 import { Ofx } from "../ofxParser.js";
 import { ReadFile } from "../types.js";
-import { formatMoney } from "../utils.js";
+import { formatMoney, prettyCurrency } from "../utils.js";
 import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
-/** @type {Map.<string, string>} */
-const currencyMap = new Map();
-currencyMap.set("BRL", "R$");
-currencyMap.set("USD", "U$");
 
-const mapCurrency = val => currencyMap.get(val) ?? val;
+// TODO: type chartData
 
+class ChartData {
+	constructor() {
+		this.minima =  Infinity;
+		this.maxima = -Infinity;
+		/** @type {Array.<{ date: Date, chart: Chart }>} */
+		this.chartObjs = [];
+	}
+}
 
-/** @type {Array.<{ date: Date, chart: Chart }>} */
-const chartObjs = [];
+export const initChartData = () => new ChartData();
 
-
-let minima =  Infinity;
-let maxima = -Infinity
 
 /**
  * @param {Ofx} ofx
+ * @param {ChartData} chartData
  * @param {ReadFile} readFile
  */
-export const chartOfx = (ofx, readFile) => {
+export const chartOfx = (ofx, chartData, readFile) => {
 
 	// const list = document.getElementById("fileList");
 	const list = document.querySelector(".list");
@@ -33,15 +34,15 @@ export const chartOfx = (ofx, readFile) => {
 	canvas.style.marginBottom = "10px";
 	const ctx = canvas.getContext("2d");
 
-	const firstCurrency = ofx.transactionCurrencyObjs[0];
+	const firstCurrency = ofx.allTransactionCurrencyObjs[0];
 	const currency = firstCurrency.currency;
 
 	const start = firstCurrency.startBalance;
 	const end = firstCurrency.endBalance;
 	const transactions = firstCurrency.transactions;
 
-  // Aggregate amounts by day (YYYY-MM-DD)
-  const dailyTotals = {};
+	// Aggregate amounts by day (YYYY-MM-DD)
+	const dailyTotals = {};
 
 	let localMinima = firstCurrency.startBalance;
 	let localMaxima = firstCurrency.startBalance;
@@ -76,10 +77,10 @@ export const chartOfx = (ofx, readFile) => {
 	accountForLocals(firstCurrency.endBalance);
 
 
-  // Sort dates chronologically
-  const sortedDates = Object.keys(dailyTotals).sort((a, b) => new Date(a) - new Date(b));
+	// Sort dates chronologically
+	const sortedDates = Object.keys(dailyTotals).sort((a, b) => new Date(a) - new Date(b));
 
-  const data = sortedDates.map(date => dailyTotals[date]);
+	const data = sortedDates.map(date => dailyTotals[date]);
 
 	const margin = (localMaxima - localMinima) * 0.05;
 
@@ -88,71 +89,77 @@ export const chartOfx = (ofx, readFile) => {
 		sortedDates[i] = `${date.substring(8, 10)}/${date.substring(5, 7)}/${date.substring(0, 4)}`;
 	}
 
-  const chart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: sortedDates,
-      datasets: [{
-        label: "Total Balance",
-        data,
-        backgroundColor: "rgba(153, 102, 255, 0.2)",
-        borderColor: "rgba(153, 102, 255, 1)",
-        borderWidth: 2,
-        tension: 0.4
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          position: "top"
-        },
-        title: {
-          display: true,
-          text: `${readFile.name} | ${formatMoney(start)} => ${formatMoney(end)}`,
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: false,
+	const cur = prettyCurrency(currency);
+	const chart = new Chart(ctx, {
+		type: "line",
+		data: {
+			labels: sortedDates,
+			datasets: [{
+				label: "Total Balance",
+				data,
+				backgroundColor: "rgba(153, 102, 255, 0.2)",
+				borderColor: "rgba(153, 102, 255, 1)",
+				borderWidth: 2,
+				tension: 0.4
+			}]
+		},
+		options: {
+			responsive: true,
+			plugins: {
+				legend: {
+					position: "top"
+				},
+				title: {
+					display: true,
+					text: [ readFile.name, `${cur} ${formatMoney(start)} → ${cur} ${formatMoney(end)}` ],
+				}
+			},
+			scales: {
+				y: {
+					beginAtZero: false,
 					ticks: {
-						callback: value => `${mapCurrency(currency)} ${formatMoney(value)}`,
+						callback: value => `${cur} ${formatMoney(value)}`,
 					},
 					min: localMinima - margin,
 					max: localMaxima + margin,
-        },
-        x: {
-          ticks: {
-            autoSkip: true,
-            maxTicksLimit: 10
-          }
-        }
-      }
-    }
-  });
+				},
+				x: {
+					ticks: {
+						autoSkip: true,
+						maxTicksLimit: 10
+					}
+				}
+			}
+		}
+	});
 
 	if (sortedDates.length === 0) { console.error(`no date?`); return; }
 
-	if (localMaxima > maxima) maxima = localMaxima;
-	if (localMinima < minima) minima = localMinima;
+	if (localMaxima > chartData.maxima) chartData.maxima = localMaxima;
+	if (localMinima < chartData.minima) chartData.minima = localMinima;
 
-	chartObjs.push({ date: sortedDates[0], chart })
-	postProcessMaps(list);
-
-	// chart.options.scales.y.max = 50000;
-	// chart.update();
+	chartData.chartObjs.push({ date: sortedDates[0], chart })
+	postProcessMaps(list, chartData);
 }
 
-const postProcessMaps = list => {
-	chartObjs.sort((a, b) => new Date(a.date) - new Date(b.date));
+// TODO: data type for our version of chart
 
-	const margin = (maxima - minima) * 0.05;
+/**
+ * @param {Array.<{ date: string, chart: Chart }>} list
+ * @param {ChartData} chartData
+ */
+const postProcessMaps = (list, chartData) => {
+	chartData.chartObjs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-	for (const chartObj of chartObjs) {
+	const margin = (chartData.maxima - chartData.minima) * 0.05;
+
+	for (const chartObj of chartData.chartObjs) {
 		list.appendChild(chartObj.chart.canvas);
-		chartObj.chart.options.scales.y.min = minima - margin;
-		chartObj.chart.options.scales.y.max = maxima + margin;
+		chartObj.chart.options.scales.y.min = Math.max(0, chartData.minima - margin);
+		chartObj.chart.options.scales.y.max = chartData.maxima + margin;
 		chartObj.chart.update();
 	}
 
 }
+
+

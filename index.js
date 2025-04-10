@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
+//  ############################################################################
+//  ############################### TERMINAL APP ###############################
+//  ############################################################################
+
 import fs from 'fs';
-import { Ofx, xmlParserOptions, parseOfxObj, filterTransactionCurrencyObj } from './src/ofxParser.js';
+import { Ofx, parseOfxObj, filterTransactionCurrencyObj, makeXmlParser } from './src/ofxParser.js';
 import { XMLParser, XMLBuilder, XMLValidator } from 'fast-xml-parser';
 
 
@@ -82,8 +86,8 @@ const run = () => {
 	const args = process.argv.slice();
 	const settings = parseArgs(args);
 
-	/** @type {Array.<Ofx>} */
-	const ofxs = [];
+	/** @type {Array.<{ ofx: Ofx, path: string }>} */
+	const ofxsAndPaths = [];
 
 	for (const path of settings.paths) {
 		if (fs.lstatSync(path).isDirectory()) {
@@ -91,26 +95,29 @@ const run = () => {
 			continue;
 		}
 
-		const file = fs.readFileSync(path, 'utf8')
+		const xmlParser = makeXmlParser();
 
-		const xmlParser = new XMLParser(xmlParserOptions);
-		const parsedXml = xmlParser.parse(file);
-		if (!parsedXml.OFX) {
-			alert(`error: needs to start with an '<OFX>' element`);
+		const fileContent = fs.readFileSync(path, 'utf8');
+
+		const rawParsedXml = xmlParser.parse(fileContent);
+		if (!rawParsedXml.OFX) {
+			console.error(`error: needs to start with an '<OFX>' element`);
 			return false;
 		}
 
-		const ofx = parseOfxObj(parsedXml.OFX);
-    ofxs.push(ofx);
+		/** @type {RawOfxTypedef} */
+		const rawOfx = rawParsedXml.OFX;
+		// console.log(rawOfx.BANKMSGSRSV1.STMTTRNRS);
+
+		const ofx = parseOfxObj(rawOfx);
+    ofxsAndPaths.push({ ofx, path });
 	}
 
-	for (const ofx of ofxs) {
-		console.log(filterTransactionCurrencyObj(ofx.transactionCurrencyObjs[0]));
+	for (const { ofx, path } of ofxsAndPaths) {
+		console.log(`\n'${path}':`);
+		console.log(filterTransactionCurrencyObj(ofx.allTransactionCurrencyObjs[0]));
 	}
 }
-
-
-
 
 
 run();

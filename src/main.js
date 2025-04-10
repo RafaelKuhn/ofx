@@ -1,16 +1,17 @@
 import './style/style.css'
-import { filterTransactionCurrencyObj, makeOfxParser } from './ofxParser.js';
+import { filterTransactionCurrencyObj, makeOfxParseFunc } from './ofxParser.js';
 import { initHtmlFileReader } from './web/webFileLoader.js';
-import { chartOfx } from './web/webCharter.js';
+import { chartOfx, initChartData } from './web/webCharter.js';
 
 
 const init = () => {
-	const parseOfx = makeOfxParser();
+	const parseOfx = makeOfxParseFunc();
+	const chartData = initChartData();
 
 	initHtmlFileReader(readFile => {
 		const ofx = parseOfx(readFile);
-		console.log(filterTransactionCurrencyObj(ofx.transactionCurrencyObjs[0]));	
-		chartOfx(ofx, readFile);
+		chartOfx(ofx, chartData, readFile);
+		// console.log(filterTransactionCurrencyObj(ofx.transactionCurrencyObjs[0]));	
 	});
 
 }

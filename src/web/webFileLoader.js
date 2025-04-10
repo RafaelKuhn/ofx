@@ -4,11 +4,11 @@ import { ReadFile } from "../types.js";
 if (typeof document === "undefined") throw new Error("File supposed to run only for the web");
 
 /**
- * @callback FileReadCb
- * @param {ReadFile}
+ * @typedef {function(ReadFile)} FileReadCb
  */
 
-// TODO: pass parameters 
+
+// TODO: store web elements in here and return this object
 export class InstancedFile {
 	constructor(readFile) {
 	}
@@ -30,6 +30,7 @@ const unHighlightBorder = () => {
 	html.dropArea.classList.remove("highlight-border");
 	html.dropArea.classList.add("unhighlight-border");
 }
+
 
 
 /**

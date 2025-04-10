@@ -1,6 +1,6 @@
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { ReadFile } from "./types.js";
-import { isUndef } from "./utils.js";
+import { isUndef, parseDate } from "./utils.js";
 
 
 export class Ofx {
@@ -8,12 +8,14 @@ export class Ofx {
 	 * @constructor
 	 * @param {Date} emittedDate
 	 * @param {string} language
+	 * @param {TransactionCurrencyObj} relevantCurrencyObj
 	 * @param {Array.<TransactionCurrencyObj>} transactionCurrencyObjs
 	 */
-	constructor(emittedDate, language, transactionCurrencyObjs) {
+	constructor(emittedDate, language, relevantCurrencyObj, transactionCurrencyObjs) {
 		this.emittedDate = emittedDate;
 		this.language = language;
-		this.transactionCurrencyObjs = transactionCurrencyObjs;
+		this.relevantCurrencyObj = relevantCurrencyObj;
+		this.allTransactionCurrencyObjs = transactionCurrencyObjs;
 	}
 }
 
@@ -75,9 +77,6 @@ class Bal {
 	}
 }
 
-const xmlParserOptions =  {
-	parseTagValue: false,
-}
 
 /**
  * @callback ofxParseFunction
@@ -85,14 +84,20 @@ const xmlParserOptions =  {
  * @returns {Ofx}
  */
 
-
 /**
  * @returns {ofxParseFunction}
  */
-export const makeOfxParser = () => {
-	const xmlParser = new XMLParser(xmlParserOptions);
+export const makeOfxParseFunc = () => {
+	const xmlParser = makeXmlParser();
 	return readFile => parseOfxInWeb(readFile, xmlParser);
 }
+
+/**
+ * @returns {XMLParser}
+ */
+export const makeXmlParser = () => new XMLParser({
+	parseTagValue: false,
+});
 
 /**
  * @param {ReadFile} readFile
@@ -141,10 +146,10 @@ const parseXmlInWeb = (readFile, fxpXmlParser) => {
 // Transferência enviada pelo Pix - EDUARDA LIMA 
 
 // BANKMSGSRSV1: Array.<> is actually not an array but an object with numeric keys
+//// BANKMSGSRSV1.STMTTRNRS.STMTRS[0].CURDEF
 
 /**
 @typedef {{
-	//// BANKMSGSRSV1.STMTTRNRS.STMTRS[0].CURDEF
 	BANKMSGSRSV1: {
 		STMTTRNRS: {
 			STMTRS: Array.<{
@@ -200,7 +205,9 @@ export const parseOfxObj = ofxData => {
 	const ofx = new Ofx();
 	ofx.language = ofxData?.SIGNONMSGSRSV1?.SONRS?.LANGUAGE;
 	ofx.emittedDate = parseDate(ofxData?.SIGNONMSGSRSV1?.SONRS?.DTSERVER);
-	ofx.transactionCurrencyObjs = [];
+
+	// TODO: ofx.relevantCurrencyObj is the one with the most transactions
+	ofx.allTransactionCurrencyObjs = [];
 
 	const stmtrsList = ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS;
 	for (const currencyInd in stmtrsList) {
@@ -264,7 +271,7 @@ export const parseOfxObj = ofxData => {
 			getStartBalanceFromTransactionsAndBal(endBalance, transactionCurrencyObj.transactions, transactionCurrencyObj.extraBalanceList);
 
 		// console.log(filterTransactionCurrencyObj(transactionCurrencyObj));
-		ofx.transactionCurrencyObjs.push(transactionCurrencyObj);
+		ofx.allTransactionCurrencyObjs.push(transactionCurrencyObj);
 	}
 
 	return ofx;
@@ -289,36 +296,6 @@ const cutAfterOfxTagRemovingHeader = fileContent => {
 export
 const filterTransactionCurrencyObj = ({ currency, startDate, endDate, startBalance, endBalance }) =>
 																		 ({ currency, startDate, endDate, startBalance, endBalance })
-
-
-
-/**
- * @param {string} dateStr
- * @returns {Date}
- */
-export const parseDate = dateStr => {
-	if (isUndef(dateStr)) return undefined;
-
-	// let date = new Date(Date.UTC(2025, 0, 1, 0, 0, 0, 0));
-	let date = new Date(2025, 0, 1, 0, 0, 0, 0);
-	date.setMilliseconds(0);
-	date.setSeconds(0);
-	date.setMinutes(0);
-	date.setHours(0);
-
-	let ct = 0;
-
-	const year  = dateStr.substring(ct, ct += 4);
-	const month = dateStr.substring(ct, ct += 2);
-	const day   = dateStr.substring(ct, ct += 2);
-	date.setDate( parseInt(day) );
-	date.setMonth( parseInt(month) - 1 );
-	date.setFullYear( parseInt(year) );
-
-	// logs if correct
-	// console.log(`from str '${dateStr}' date: ${formatDate(date)}`);
-	return date;
-}
 
 
 /**
