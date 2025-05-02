@@ -101,22 +101,25 @@ const run = () => {
 
 		const rawParsedXml = xmlParser.parse(fileContent);
 		if (!rawParsedXml.OFX) {
-			console.error(`error: needs to start with an '<OFX>' element`);
+			console.error(`error: '${path}': needs to start with an '<OFX>' element, skipping`);
 			return false;
 		}
 
 		/** @type {RawOfxTypedef} */
 		const rawOfx = rawParsedXml.OFX;
-		// console.log(rawOfx.BANKMSGSRSV1.STMTTRNRS);
 
 		const ofx = parseOfxObj(rawOfx);
     ofxsAndPaths.push({ ofx, path });
+
+		// console.log(rawOfx.BANKMSGSRSV1.STMTTRNRS.STMTRS[0].BANKTRANLIST.STMTTRN);
+		// console.log(ofx.allTransactionCurrencyObjs[0].transactions);
 	}
 
 	for (const { ofx, path } of ofxsAndPaths) {
 		console.log(`\n'${path}':`);
 		console.log(filterTransactionCurrencyObj(ofx.allTransactionCurrencyObjs[0]));
 	}
+
 }
 
 

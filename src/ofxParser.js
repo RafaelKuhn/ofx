@@ -161,9 +161,10 @@ const parseXmlInWeb = (readFile, fxpXmlParser) => {
 						TRNTYPE:  String,
 						DTPOSTED: String,
 						TRNAMT:   String,
-						NAME:     String,
+						NAME:     String, // OR MEMO
 						MEMO:     String,
 						FITID:    String,
+						// REFNUM: String
 					}>
 				},
 				CURDEF: String,
@@ -191,6 +192,7 @@ const parseXmlInWeb = (readFile, fxpXmlParser) => {
 
 
 /**
+ * mutates ofxData to make its type correct
  * @param {RawOfxTypedef} ofxData
  * @returns {Ofx}
  */
@@ -270,9 +272,18 @@ export const parseOfxObj = ofxData => {
 		transactionCurrencyObj.startBalance =
 			getStartBalanceFromTransactionsAndBal(endBalance, transactionCurrencyObj.transactions, transactionCurrencyObj.extraBalanceList);
 
-		// console.log(filterTransactionCurrencyObj(transactionCurrencyObj));
 		ofx.allTransactionCurrencyObjs.push(transactionCurrencyObj);
 	}
+
+	ofx.relevantCurrencyObj = ofx.allTransactionCurrencyObjs[0];
+	for (const currencyObj of ofx.allTransactionCurrencyObjs) {
+		if (currencyObj.transactions.length > ofx.relevantCurrencyObj.transactions.length) {
+			ofx.relevantCurrencyObj = currencyObj;
+		}
+	}
+
+	console.log("most relevant:");
+	console.log(ofx.relevantCurrencyObj);
 
 	return ofx;
 }
