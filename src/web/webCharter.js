@@ -11,13 +11,27 @@ class ChartData {
 	constructor() {
 		this.minima =  Infinity;
 		this.maxima = -Infinity;
-		/** @type {Array.<{ date: Date, chart: Chart }>} */
+		/** @type {Array.<ChartObj>} */
 		this.chartObjs = [];
+	}
+}
+
+class ChartObj {
+	/**
+	 * @param {Date} date
+	 * @param {Chart} chart
+	 */
+	constructor(date, chart,) {
+		this.date = date;
+		this.chart = chart;
 	}
 }
 
 export const initChartData = () => new ChartData();
 
+
+/** @param {Date} date @returns {string} */
+const toIso = date => date.toISOString().split("T")[0]; // "YYYY-MM-DD"
 
 /**
  * @param {Ofx} ofx
@@ -30,57 +44,67 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	const list = document.querySelector(".list");
 	const canvas = document.createElement("canvas");
 	list.append(canvas);
+
 	canvas.style.background = "beige";
 	canvas.style.marginBottom = "10px";
 	const ctx = canvas.getContext("2d");
 
-	const firstCurrency = ofx.allTransactionCurrencyObjs[0];
-	const currency = firstCurrency.currency;
+	const relevantCurrency = ofx.relevantCurrencyObj;
+	const currency = relevantCurrency.currency;
 
-	const start = firstCurrency.startBalance;
-	const end = firstCurrency.endBalance;
-	const transactions = firstCurrency.transactions;
+	const start = relevantCurrency.startBalance;
+	const end = relevantCurrency.endBalance;
+	const transactions = relevantCurrency.transactions;
 
 	// Aggregate amounts by day (YYYY-MM-DD)
 	const dailyTotals = {};
+	const dailyIncomes = {};
+	const dailyExpense = {};
 
-	let localMinima = firstCurrency.startBalance;
-	let localMaxima = firstCurrency.startBalance;
-
-	/** @param {Date} date @returns {string} */
-	const toIso = date => date.toISOString().split("T")[0]; // "YYYY-MM-DD"
+	let localMinima = relevantCurrency.startBalance;
+	let localMaxima = relevantCurrency.startBalance;
 
 	/** @param {number} value */
-	const accountForLocals = value => {
+	const trySetLocalMinimasAndMaxima = value => {
 		if (value < localMinima) localMinima = value;
 		if (value > localMaxima) localMaxima = value;
 	}
 
-	const startDate = toIso(firstCurrency.startDate);
-	dailyTotals[startDate] = firstCurrency.startBalance;
-	accountForLocals(firstCurrency.startBalance);
+	const startDate = toIso(relevantCurrency.startDate);
+	dailyTotals[startDate] = relevantCurrency.startBalance;
+	if (!dailyIncomes[startDate]) dailyIncomes[startDate] = 0.0;
+	if (!dailyExpense[startDate]) dailyExpense[startDate] = 0.0;
+	trySetLocalMinimasAndMaxima(relevantCurrency.startBalance);
 
 	// TODO: we assume transactions are sorted
 	let lastDailyTotal = start;
 	for (const tx of transactions) {
 		const dateStr = toIso(tx.date);
-		if (!dailyTotals[dateStr]) {
-			dailyTotals[dateStr] = lastDailyTotal;
-		}
+		if (!dailyTotals[dateStr]) dailyTotals[dateStr] = lastDailyTotal;
+
 		dailyTotals[dateStr] += tx.amount;
 		lastDailyTotal += tx.amount;
-		accountForLocals(lastDailyTotal);
+
+		if (!dailyIncomes[dateStr]) dailyIncomes[dateStr] = 0.0;
+		if (!dailyExpense[dateStr]) dailyExpense[dateStr] = 0.0;
+		if (tx.amount > 0.0) dailyIncomes[dateStr] += tx.amount;
+		else dailyExpense[dateStr] += Math.abs(tx.amount);
+
+		trySetLocalMinimasAndMaxima(lastDailyTotal);
 	}
 
-	const endDate = toIso(firstCurrency.endDate);
-	dailyTotals[endDate] = firstCurrency.endBalance;
-	accountForLocals(firstCurrency.endBalance);
+	const endDate = toIso(relevantCurrency.endDate);
+	dailyTotals[endDate] = relevantCurrency.endBalance;
+					if (!dailyIncomes[endDate]) dailyIncomes[endDate] = 0.0;
+					if (!dailyExpense[endDate]) dailyExpense[endDate] = 0.0;
 
+	trySetLocalMinimasAndMaxima(relevantCurrency.endBalance);
 
 	// Sort dates chronologically
 	const sortedDates = Object.keys(dailyTotals).sort((a, b) => new Date(a) - new Date(b));
-
-	const data = sortedDates.map(date => dailyTotals[date]);
+	const balanceData = sortedDates.map(date => dailyTotals[date]);
+	const expenseData = sortedDates.map(date => dailyExpense[date]);
+	const incomesData = sortedDates.map(date => dailyIncomes[date]);
 
 	const margin = (localMaxima - localMinima) * 0.05;
 
@@ -94,14 +118,32 @@ export const chartOfx = (ofx, chartData, readFile) => {
 		type: "line",
 		data: {
 			labels: sortedDates,
-			datasets: [{
+			datasets: [
+			{
 				label: "Total Balance",
-				data,
-				backgroundColor: "rgba(153, 102, 255, 0.2)",
+				data: balanceData,
+				backgroundColor: "rgba(153, 102, 255, 1)",
 				borderColor: "rgba(153, 102, 255, 1)",
 				borderWidth: 2,
-				tension: 0.4
-			}]
+				// yAxisID: 'y'
+			},
+			{
+				label: "Incomes",
+				data: incomesData,
+				backgroundColor: "rgba(72, 255, 0, 0.5)",
+				borderColor: "rgb(86, 214, 27)",
+				borderWidth: 2,
+				// yAxisID: 'y'
+			},
+			{
+				label: "Expenses",
+				data: expenseData,
+				backgroundColor: "rgb(255, 102, 102)",
+				borderColor: "rgb(196, 79, 79)",
+				borderWidth: 2,
+				// yAxisID: 'y',
+			}
+		]
 		},
 		options: {
 			responsive: true,
@@ -120,8 +162,8 @@ export const chartOfx = (ofx, chartData, readFile) => {
 					ticks: {
 						callback: value => `${cur} ${formatMoney(value)}`,
 					},
-					min: localMinima - margin,
-					max: localMaxima + margin,
+					// min: localMinima - margin,
+					// max: localMaxima + margin,
 				},
 				x: {
 					ticks: {
@@ -138,7 +180,7 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	if (localMaxima > chartData.maxima) chartData.maxima = localMaxima;
 	if (localMinima < chartData.minima) chartData.minima = localMinima;
 
-	chartData.chartObjs.push({ date: sortedDates[0], chart })
+	chartData.chartObjs.push(new ChartObj(sortedDates[0], chart))
 	postProcessMaps(list, chartData);
 }
 
@@ -153,11 +195,14 @@ const postProcessMaps = (list, chartData) => {
 
 	const margin = (chartData.maxima - chartData.minima) * 0.05;
 
+	// TODO: if I check only total balance, it needs to apply this
+
 	for (const chartObj of chartData.chartObjs) {
 		list.appendChild(chartObj.chart.canvas);
-		chartObj.chart.options.scales.y.min = Math.max(0, chartData.minima - margin);
-		chartObj.chart.options.scales.y.max = chartData.maxima + margin;
-		chartObj.chart.update();
+		// chartObj.chart.options.scales.y.min = 0;
+		// chartObj.chart.options.scales.y.min = Math.max(0, chartData.minima - margin);
+		// chartObj.chart.options.scales.y.max = chartData.maxima + margin;
+		chartObj.chart.update({ duration: 0 });
 	}
 
 }

@@ -282,8 +282,8 @@ export const parseOfxObj = ofxData => {
 		}
 	}
 
-	console.log("most relevant:");
-	console.log(ofx.relevantCurrencyObj);
+	// console.log("most relevant:");
+	// console.log(ofx.relevantCurrencyObj);
 
 	return ofx;
 }
