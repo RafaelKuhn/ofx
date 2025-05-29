@@ -89,7 +89,7 @@ class Bal {
  */
 export const makeOfxParseFunc = () => {
 	const xmlParser = makeXmlParser();
-	return readFile => parseOfxInWeb(readFile, xmlParser);
+	return file => parseOfxForWeb(file, xmlParser);
 }
 
 /**
@@ -103,9 +103,9 @@ export const makeXmlParser = () => new XMLParser({
  * @param {ReadFile} readFile
  * @returns {Ofx}
  */
-export const parseOfxInWeb = (readFile, fxpXmlParser) => {
+export const parseOfxForWeb = (readFile, fxpXmlParser) => {
 
-	const xmlFileData = parseXmlInWeb(readFile, fxpXmlParser);
+	const xmlFileData = parseXmlForWeb(readFile, fxpXmlParser);
 	if (!xmlFileData) return;
 
 	const parsedOfxObj = parseOfxObj(xmlFileData);
@@ -118,7 +118,7 @@ export const parseOfxInWeb = (readFile, fxpXmlParser) => {
  * @param {XMLParser} fxpXmlParser
  * @returns {RawOfxTypedef|false}
  */
-const parseXmlInWeb = (readFile, fxpXmlParser) => {
+const parseXmlForWeb = (readFile, fxpXmlParser) => {
 	const fileContent = readFile.content
 	const onlyXmlString = cutAfterOfxTagRemovingHeader(fileContent);
 	if (!onlyXmlString) {
@@ -192,7 +192,7 @@ const parseXmlInWeb = (readFile, fxpXmlParser) => {
 
 
 /**
- * mutates ofxData to make its type correct
+ * mutates raw ofxData to make its type correct
  * @param {RawOfxTypedef} ofxData
  * @returns {Ofx}
  */
@@ -208,7 +208,6 @@ export const parseOfxObj = ofxData => {
 	ofx.language = ofxData?.SIGNONMSGSRSV1?.SONRS?.LANGUAGE;
 	ofx.emittedDate = parseDate(ofxData?.SIGNONMSGSRSV1?.SONRS?.DTSERVER);
 
-	// TODO: ofx.relevantCurrencyObj is the one with the most transactions
 	ofx.allTransactionCurrencyObjs = [];
 
 	const stmtrsList = ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS;

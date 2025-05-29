@@ -4,13 +4,19 @@ import { ReadFile } from "../types.js";
 if (typeof document === "undefined") throw new Error("File supposed to run only for the web");
 
 /**
- * @typedef {function(ReadFile)} FileReadCb
+ * @typedef {function(InstancedFile)} FileReadCb
  */
 
 
 // TODO: store web elements in here and return this object
 export class InstancedFile {
-	constructor(readFile) {
+	/**
+	 * @param {ReadFile} file
+	 * @param {HTMLAnchorElement} closeAnchor
+	 */
+	constructor(file, closeAnchor,) {
+		this.file = file;
+		this.closeAnchor = closeAnchor;
 	}
 }
 
@@ -32,13 +38,13 @@ const unHighlightBorder = () => {
 }
 
 
-
 /**
  * @param {FileReadCb} onFileRead
  */
 export const initHtmlFileReader = onFileRead => {
 
 	const wrapper = document.querySelector(".wrapper");
+	/** @type {HTMLInputElement} */
 	const fileInput = document.getElementById("fileInput");
 
 	const evts = [ "dragenter", "dragover", "dragleave", "drop" ];
@@ -51,11 +57,7 @@ export const initHtmlFileReader = onFileRead => {
 
 	wrapper.addEventListener("drop", evt => onDropFile(evt, onFileRead));
 
-	fileInput.addEventListener("change", () => {
-		for (const file of fileInput.files) {
-			queryFile(file, onFileRead);
-		}
-	});
+	fileInput.addEventListener("change", () => queryAllFiles(fileInput.files, onFileRead));
 }
 
 /** @type {Set.<String>} */
@@ -69,7 +71,12 @@ const onDropFile = (evt, onFileRead) => {
 	evt.preventDefault()
 	/** @type {DataTransfer} */
 	const dt = evt.dataTransfer;
-	for (const file of dt.files) {
+	queryAllFiles(dt.files, onFileRead)
+}
+
+/** @param {FileList} */
+const queryAllFiles = (files, onFileRead) => {
+	for (const file of files) {
 		queryFile(file, onFileRead);
 	}
 }
@@ -118,8 +125,9 @@ const queryFile = (file, onFileRead) => {
 	}
 
 	// TODO: JOIN uncomment remove added file from lists, throw event
-	// const closeAnchor = templateCopy.querySelector(".close");
-	// closeAnchor.addEventListener("click", deleteListItem);
+	/** @type {HTMLAnchorElement} */
+	const closeAnchor = templateCopy.querySelector(".close");
+	closeAnchor.addEventListener("click", deleteListItem);
 
 	const reader = new FileReader();
 	reader.addEventListener("error", () => { deleteListItem(); alert(`Error reading '${file.name}': ${reader.error}`); });
@@ -164,10 +172,12 @@ const queryFile = (file, onFileRead) => {
 			}
 
 			fileListings.splice(listingIndex, 1);
+
+			deleteListItem();
 		}
 
 		// TODO: JOIN uncomment remove added file from lists, throw event
-		// closeAnchor.addEventListener("click", removeFromLists);
+		closeAnchor.addEventListener("click", removeFromLists);
 
 		fileListings.sort((a, b) => {
 			if (a.name < b.name) return -1;
@@ -179,7 +189,9 @@ const queryFile = (file, onFileRead) => {
 			html.listingsUl.appendChild(listingInList.element);
 		}
 
-		onFileRead(new ReadFile(file.name, fileContent));
+		const readFile = new ReadFile(file.name, fileContent);
+		const instancedFile = new InstancedFile(readFile, closeAnchor);
+		onFileRead(instancedFile);
 	});
 
 	reader.readAsText(file, "UTF-8");

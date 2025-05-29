@@ -2,10 +2,8 @@ import { Ofx } from "../ofxParser.js";
 import { ReadFile } from "../types.js";
 import { formatMoney, prettyCurrency } from "../utils.js";
 import { Chart, registerables } from 'chart.js';
+
 Chart.register(...registerables);
-
-
-// TODO: type chartData
 
 class ChartData {
 	constructor() {
@@ -14,20 +12,24 @@ class ChartData {
 		/** @type {Array.<ChartObj>} */
 		this.chartObjs = [];
 	}
+
+	removeChart
 }
 
 class ChartObj {
 	/**
 	 * @param {Date} date
 	 * @param {Chart} chart
+	 * @param {Symbol} fileSymbol
 	 */
-	constructor(date, chart,) {
+	constructor(date, chart, fileSymbol,) {
 		this.date = date;
 		this.chart = chart;
+		this.fileSymbol = fileSymbol;
 	}
 }
 
-export const initChartData = () => new ChartData();
+export const initChartContainer = () => new ChartData();
 
 
 /** @param {Date} date @returns {string} */
@@ -37,6 +39,7 @@ const toIso = date => date.toISOString().split("T")[0]; // "YYYY-MM-DD"
  * @param {Ofx} ofx
  * @param {ChartData} chartData
  * @param {ReadFile} readFile
+ * @returns {ChartObj}
  */
 export const chartOfx = (ofx, chartData, readFile) => {
 
@@ -76,7 +79,7 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	if (!dailyExpense[startDate]) dailyExpense[startDate] = 0.0;
 	trySetLocalMinimasAndMaxima(relevantCurrency.startBalance);
 
-	// TODO: we assume transactions are sorted
+	// we assume transactions are sorted
 	let lastDailyTotal = start;
 	for (const tx of transactions) {
 		const dateStr = toIso(tx.date);
@@ -95,8 +98,8 @@ export const chartOfx = (ofx, chartData, readFile) => {
 
 	const endDate = toIso(relevantCurrency.endDate);
 	dailyTotals[endDate] = relevantCurrency.endBalance;
-					if (!dailyIncomes[endDate]) dailyIncomes[endDate] = 0.0;
-					if (!dailyExpense[endDate]) dailyExpense[endDate] = 0.0;
+	if (!dailyIncomes[endDate]) dailyIncomes[endDate] = 0.0;
+	if (!dailyExpense[endDate]) dailyExpense[endDate] = 0.0;
 
 	trySetLocalMinimasAndMaxima(relevantCurrency.endBalance);
 
@@ -106,7 +109,7 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	const expenseData = sortedDates.map(date => dailyExpense[date]);
 	const incomesData = sortedDates.map(date => dailyIncomes[date]);
 
-	const margin = (localMaxima - localMinima) * 0.05;
+	// const margin = (localMaxima - localMinima) * 0.05;
 
 	for (let i = 0; i < sortedDates.length; ++i) {
 		const date = sortedDates[i];
@@ -125,24 +128,27 @@ export const chartOfx = (ofx, chartData, readFile) => {
 				backgroundColor: "rgba(153, 102, 255, 1)",
 				borderColor: "rgba(153, 102, 255, 1)",
 				borderWidth: 2,
-				// yAxisID: 'y'
+				// yAxisID: 'y',
+				// tension: 0.4
 			},
 			{
-				label: "Incomes",
+				label: "Income",
 				data: incomesData,
 				backgroundColor: "rgba(72, 255, 0, 0.5)",
 				borderColor: "rgb(86, 214, 27)",
 				borderWidth: 2,
-				// yAxisID: 'y'
+				// yAxisID: 'y',
+				// tension: 0.4
 			},
 			{
-				label: "Expenses",
+				label: "Expense",
 				data: expenseData,
 				backgroundColor: "rgb(255, 102, 102)",
 				borderColor: "rgb(196, 79, 79)",
 				borderWidth: 2,
 				// yAxisID: 'y',
-			}
+				// tension: 0.4
+			},
 		]
 		},
 		options: {
@@ -180,8 +186,38 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	if (localMaxima > chartData.maxima) chartData.maxima = localMaxima;
 	if (localMinima < chartData.minima) chartData.minima = localMinima;
 
-	chartData.chartObjs.push(new ChartObj(sortedDates[0], chart))
+	const chartObj = new ChartObj(sortedDates[0], chart, Symbol(readFile.name));
+	chartData.chartObjs.push(chartObj)
 	postProcessMaps(list, chartData);
+
+	return chartObj;
+}
+
+
+/**
+ * @param {ChartData} chartData
+ * @param {ChartObj} chartObj
+ */
+export const deleteChart = (chartObj, chartData) => {
+	const indexOfChart = indexOf(chartObj, chartData.chartObjs);
+	chartData.chartObjs.splice(indexOfChart, 1);
+
+	chartObj.chart.canvas.remove();
+	chartObj.chart.destroy();
+}
+
+/**
+ * @param {ChartData} chartData
+ * @param {ChartObj} chartObj
+ */
+const indexOf = (chartData, chartObj) => {
+
+	for (let i = 0; i < chartData.chartObjs; ++i) {
+		const ithChart = chartData.chartObjs[i];
+		if (ithChart.fileSymbol === chartObj.fileSymbol) return i;
+	}
+
+	return -1;
 }
 
 // TODO: data type for our version of chart
@@ -193,9 +229,7 @@ export const chartOfx = (ofx, chartData, readFile) => {
 const postProcessMaps = (list, chartData) => {
 	chartData.chartObjs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-	const margin = (chartData.maxima - chartData.minima) * 0.05;
-
-	// TODO: if I check only total balance, it needs to apply this
+	// const margin = (chartData.maxima - chartData.minima) * 0.05;
 
 	for (const chartObj of chartData.chartObjs) {
 		list.appendChild(chartObj.chart.canvas);
