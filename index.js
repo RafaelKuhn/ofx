@@ -111,13 +111,13 @@ const run = () => {
 		const ofx = parseOfxObj(rawOfx);
     ofxsAndPaths.push({ ofx, path });
 
-		// console.log(rawOfx.BANKMSGSRSV1.STMTTRNRS.STMTRS[0].BANKTRANLIST.STMTTRN);
-		// console.log(ofx.allTransactionCurrencyObjs[0].transactions);
+		//  console.log(rawOfx.BANKMSGSRSV1.STMTTRNRS.STMTRS[0].BANKTRANLIST.STMTTRN);
+		//  console.log(ofx.allTransactionCurrencyObjs[0].transactions);
 	}
 
 	for (const { ofx, path } of ofxsAndPaths) {
-		console.log(`\n'${path}':`);
-		console.log(filterTransactionCurrencyObj(ofx.allTransactionCurrencyObjs[0]));
+		console.log(`\n\nfile '${path}':`);
+		console.log(ofx.allTransactionCurrencyObjs[0].transactions);
 	}
 
 }
