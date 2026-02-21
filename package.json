@@ -9,7 +9,7 @@
 	},
 	"dependencies": {
 		"chart.js": "^4.4.8",
-		"fast-xml-parser": "^5.2.0"
+		"fast-xml-parser": "^5.3.7"
 	},
 	"devDependencies": {
 		"vite": "^5.4.10"
