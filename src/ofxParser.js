@@ -2,6 +2,9 @@ import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { ReadFile } from "./types.js";
 import { isUndef, parseDate } from "./utils.js";
 
+const SGML_HEADER_REGEX = /^\s*DATA\s*:\s*OFXSGML\s*$/mi;
+const WHITESPACE_REGEX = /\s+/;
+const SGML_VALUE_REGEX = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<([A-Z][\w.]*)\s*>([^<]*)/g;
 
 export class Ofx {
 	/**
@@ -104,42 +107,63 @@ export const makeXmlParser = () => new XMLParser({
  * @returns {Ofx}
  */
 export const parseOfxForWeb = (readFile, fxpXmlParser) => {
-
-	const xmlFileData = parseXmlForWeb(readFile, fxpXmlParser);
-	if (!xmlFileData) return;
-
-	const parsedOfxObj = parseOfxObj(xmlFileData);
-	return parsedOfxObj;
+	try {
+		return parseOfx(readFile.content, fxpXmlParser);
+	} catch (error) {
+		alert(`error: ${error.message}`);
+	}
 }
 
 
 /**
- * @param {ReadFile} readFile
+ * Parses either XML OFX or OFX 1.x with a DATA:OFXSGML header.
+ * @param {string} fileContent
  * @param {XMLParser} fxpXmlParser
- * @returns {RawOfxTypedef|false}
+ * @returns {Ofx}
  */
-const parseXmlForWeb = (readFile, fxpXmlParser) => {
-	const fileContent = readFile.content
-	const onlyXmlString = cutAfterOfxTagRemovingHeader(fileContent);
+export const parseOfx = (fileContent, fxpXmlParser = makeXmlParser()) => {
+	let onlyXmlString = cutAfterOfxTagRemovingHeader(fileContent);
 	if (!onlyXmlString) {
-		alert(`error: no '<OFX>' tag found`);
-		return false;
+		throw new Error("no '<OFX>' tag found");
+	}
+	const header = fileContent.slice(0, fileContent.length - onlyXmlString.length);
+	if (SGML_HEADER_REGEX.test(header)) {
+		onlyXmlString = closeSgmlValues(onlyXmlString);
 	}
 
 	const validation = XMLValidator.validate(onlyXmlString);
 	if (validation.err) {
-		alert(`error: ${validation.err.msg}\nline ${validation.err.line}`);
-		return false;
+		throw new Error(`${validation.err.msg}\nline ${validation.err.line}`);
 	}
 
 	const parsedXml = fxpXmlParser.parse(onlyXmlString);
 	if (!parsedXml.OFX) {
-		alert(`error: needs to start with an '<OFX>' element`);
-		return false;
+		throw new Error("needs to start with an '<OFX>' element");
 	}
 
-	return parsedXml.OFX;
+	return parseOfxObj(parsedXml.OFX);
 }
+
+// OFX 1.x omits end tags for values, but still closes aggregates. Empty
+// values cannot be inferred from text, so identify the supported scalar tags.
+const scalarTags = new Set(`TRNUID CODE SEVERITY MESSAGE DTSERVER LANGUAGE
+ORG FID INTU.BID DTPROFUP DTACCTUP SESSCOOKIE ACCESSKEY USERKEY TSKEY
+CURDEF BANKID BRANCHID ACCTID ACCTTYPE ACCTKEY DTSTART DTEND TRNTYPE
+DTPOSTED DTUSER DTAVAIL TRNAMT FITID CORRECTFITID CORRECTACTION SRVRTID
+CHECKNUM REFNUM SIC PAYEEID NAME MEMO BALAMT DTASOF DESC BALTYPE VALUE
+CURRATE CURSYM`.split(WHITESPACE_REGEX));
+
+const closeSgmlValues = source => source.replace(
+	SGML_VALUE_REGEX,
+	(match, tag, value, offset) => {
+		if (!tag || (!value.trim() && !scalarTags.has(tag))) return match;
+		const next = source.slice(offset + match.length);
+		if (next.startsWith(`</${tag}>`)) return match;
+		return `${match}</${tag}>`;
+	}
+);
+
+const asArray = value => value == null ? [] : Array.isArray(value) ? value : [value];
 
 
 // store just the first 45 digits of MEMO
@@ -192,17 +216,11 @@ const parseXmlForWeb = (readFile, fxpXmlParser) => {
 
 
 /**
- * mutates raw ofxData to make its type correct
+ * Converts parsed OFX data without mutating the input.
  * @param {RawOfxTypedef} ofxData
  * @returns {Ofx}
  */
 export const parseOfxObj = ofxData => {
-
-	if (!Array.isArray(ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS)) {
-		const val = ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS;
-		ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS = [];
-		ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS.push(val);
-	}
 
 	const ofx = new Ofx();
 	ofx.language = ofxData?.SIGNONMSGSRSV1?.SONRS?.LANGUAGE;
@@ -210,9 +228,10 @@ export const parseOfxObj = ofxData => {
 
 	ofx.allTransactionCurrencyObjs = [];
 
-	const stmtrsList = ofxData.BANKMSGSRSV1.STMTTRNRS.STMTRS;
-	for (const currencyInd in stmtrsList) {
-		const rawBankTransfersOfCurrency = stmtrsList[currencyInd];
+	const stmtrsList = asArray(ofxData.BANKMSGSRSV1?.STMTTRNRS)
+		.flatMap(response => asArray(response.STMTRS));
+	if (!stmtrsList.length) throw new Error('no bank statements found');
+	for (const rawBankTransfersOfCurrency of stmtrsList) {
 
 		const currency   = rawBankTransfersOfCurrency?.CURDEF;
 		const acctType   = rawBankTransfersOfCurrency?.BANKACCTFROM?.ACCTTYPE;
@@ -229,9 +248,8 @@ export const parseOfxObj = ofxData => {
 		transactionCurrencyObj.transactions = [];
 		transactionCurrencyObj.extraBalanceList = [];
 
-		const transactionsByIndex = rawBankTransfersOfCurrency.BANKTRANLIST.STMTTRN;
-		for (const transactionIndex in transactionsByIndex) {
-			const rawTransaction = transactionsByIndex?.[transactionIndex];
+		const transactions = asArray(rawBankTransfersOfCurrency.BANKTRANLIST?.STMTTRN);
+		for (const rawTransaction of transactions) {
 
 			const parsedAmt = parseFloat(rawTransaction?.TRNAMT);
 			const datePosted = parseDate(rawTransaction?.DTPOSTED);
@@ -251,14 +269,7 @@ export const parseOfxObj = ofxData => {
 		}
 
 		if (!isUndef(rawBankTransfersOfCurrency?.BALLIST?.BAL)) {
-			const isSingleBalInBalList = !(rawBankTransfersOfCurrency.BALLIST.BAL instanceof Array);
-			if (isSingleBalInBalList) {
-				const singleBal = rawBankTransfersOfCurrency.BALLIST.BAL;
-				rawBankTransfersOfCurrency.BALLIST.BAL = [];
-				rawBankTransfersOfCurrency.BALLIST.BAL.push(singleBal);	
-			}
-
-			for (const rawBal of rawBankTransfersOfCurrency.BALLIST.BAL) {
+			for (const rawBal of asArray(rawBankTransfersOfCurrency.BALLIST.BAL)) {
 				const bal = new Bal();
 				bal.amount = parseFloat(rawBal.VALUE);
 				bal.baltype = rawBal.BALTYPE;
@@ -268,8 +279,7 @@ export const parseOfxObj = ofxData => {
 			}
 		}
 
-		transactionCurrencyObj.startBalance =
-			getStartBalanceFromTransactionsAndBal(endBalance, transactionCurrencyObj.transactions, transactionCurrencyObj.extraBalanceList);
+		transactionCurrencyObj.startBalance = getStartBalanceFromTransactions(endBalance, transactionCurrencyObj.transactions);
 
 		ofx.allTransactionCurrencyObjs.push(transactionCurrencyObj);
 	}
@@ -303,28 +313,22 @@ const cutAfterOfxTagRemovingHeader = fileContent => {
 
 
 /** @param {TransactionCurrencyObj} */
-export
-const filterTransactionCurrencyObj = ({ currency, startDate, endDate, startBalance, endBalance }) =>
-																		 ({ currency, startDate, endDate, startBalance, endBalance })
+export const filterTransactionCurrencyObj = ({ currency, startDate, endDate, startBalance, endBalance }) =>
+																						({ currency, startDate, endDate, startBalance, endBalance })
+																						// ({ currency, startDate, endDate, startBalance, endBalance })
 
 
 /**
  * @param {number} endBalance
  * @param {Array.<Transaction>} transactions
- * @param {Array.<Bal>} bals
  * @returns {number}
  */
-const getStartBalanceFromTransactionsAndBal = (endBalance, transactions, bals) => {
+const getStartBalanceFromTransactions = (endBalance, transactions) => {
 
 	let totalInTransactions = 0;
 	for (const transaction of transactions) {
 		totalInTransactions += transaction.amount;
 	}
 
-	let totalInBals = 0;
-	for (const bal of bals) {
-		totalInBals += bal.amount;
-	}
-
-	return endBalance - totalInTransactions - totalInBals;
+	return endBalance - totalInTransactions;
 }

@@ -5,8 +5,7 @@
 //  ############################################################################
 
 import fs from 'fs';
-import { Ofx, parseOfxObj, filterTransactionCurrencyObj, makeXmlParser } from './src/ofxParser.js';
-import { XMLParser, XMLBuilder, XMLValidator } from 'fast-xml-parser';
+import { Ofx, parseOfx } from './src/ofxParser.js';
 
 
 class Settings {
@@ -95,21 +94,9 @@ const run = () => {
 			continue;
 		}
 
-		const xmlParser = makeXmlParser();
-
 		const fileContent = fs.readFileSync(path, 'utf8');
-
-		const rawParsedXml = xmlParser.parse(fileContent);
-		if (!rawParsedXml.OFX) {
-			console.error(`error: '${path}': needs to start with an '<OFX>' element, skipping`);
-			return false;
-		}
-
-		/** @type {RawOfxTypedef} */
-		const rawOfx = rawParsedXml.OFX;
-
-		const ofx = parseOfxObj(rawOfx);
-    ofxsAndPaths.push({ ofx, path });
+		const ofx = parseOfx(fileContent);
+		ofxsAndPaths.push({ ofx, path });
 
 		//  console.log(rawOfx.BANKMSGSRSV1.STMTTRNRS.STMTRS[0].BANKTRANLIST.STMTTRN);
 		//  console.log(ofx.allTransactionCurrencyObjs[0].transactions);

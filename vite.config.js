@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  server: {
+	server: {
 		port: 1313,
+		hmr: false,
 	}
 })

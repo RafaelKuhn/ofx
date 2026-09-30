@@ -141,7 +141,7 @@ export const chartOfx = (ofx, chartData, readFile) => {
 				// tension: 0.4
 			},
 			{
-				label: "Expense",
+				label: "Outgoing",
 				data: expenseData,
 				backgroundColor: "rgb(255, 102, 102)",
 				borderColor: "rgb(196, 79, 79)",

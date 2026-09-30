@@ -1,4 +1,4 @@
-
+const THOUSANDS_SEPARATOR_REGEX = /\B(?=(?:\d{3})+(?!\d))/g;
 
 /**
  * @param {*} arg
@@ -33,9 +33,7 @@ export const parseDate = dateStr => {
 	const year  = dateStr.substring(ct, ct += 4);
 	const month = dateStr.substring(ct, ct += 2);
 	const day   = dateStr.substring(ct, ct += 2);
-	date.setDate( parseInt(day) );
-	date.setMonth( parseInt(month) - 1 );
-	date.setFullYear( parseInt(year) );
+	date.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
 
 	// logs if correct
 	// console.log(`from str '${dateStr}' date: ${formatDate(date)}`);
@@ -61,7 +59,7 @@ const number_format = (number, decimals, dec_point, thousands_sep) => {
 			},
 			s = (prec ? toFixedFix(n, prec) : Math.round(n)).toString().split('.');
 	if (s[0].length > 3) {
-			s[0] = s[0].replace(/\B(?=(?:\d{3})+(?!\d))/g, sep);
+			s[0] = s[0].replace(THOUSANDS_SEPARATOR_REGEX, sep);
 	}
 	if ((s[1] || '').length < prec) {
 			s[1] = s[1] || '';

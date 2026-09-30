@@ -1,10 +1,11 @@
 import { ReadFile } from "../types.js";
+import { createTimingRun } from "./performance.js";
 
 
 if (typeof document === "undefined") throw new Error("File supposed to run only for the web");
 
 /**
- * @typedef {function(InstancedFile)} FileReadCb
+ * @typedef {function(InstancedFile, ReturnType<typeof createTimingRun>)} FileReadCb
  */
 
 
@@ -130,8 +131,14 @@ const queryFile = (file, onFileRead) => {
 	closeAnchor.addEventListener("click", deleteListItem);
 
 	const reader = new FileReader();
-	reader.addEventListener("error", () => { deleteListItem(); alert(`Error reading '${file.name}': ${reader.error}`); });
-	reader.addEventListener("abort", () => { deleteListItem(); alert(`Aborted: '${file.name}'`); });
+	const timings = createTimingRun(file.name);
+	let stopReading;
+	const reportReadFailure = () => {
+		stopReading?.();
+		timings.report();
+	};
+	reader.addEventListener("error", () => { reportReadFailure(); deleteListItem(); alert(`Error reading '${file.name}': ${reader.error}`); });
+	reader.addEventListener("abort", () => { reportReadFailure(); deleteListItem(); alert(`Aborted: '${file.name}'`); });
 
 	const setProgress = progressPercentage => {
 		const percentageStr = `${Math.round(progressPercentage * 100).toFixed(0)}%`
@@ -145,11 +152,13 @@ const queryFile = (file, onFileRead) => {
 	});
 
 	reader.addEventListener("load", evt => {
+		stopReading();
 		setProgress(1);
 		const fileContent = evt.target.result;
 		
 		// TODO: extract
 		if (fileSet.has(fileContent)) {
+			timings.report();
 			alert(`File '${file.name}' skipped\nIts content was already there`)
 			deleteListItem();
 			return;
@@ -191,8 +200,18 @@ const queryFile = (file, onFileRead) => {
 
 		const readFile = new ReadFile(file.name, fileContent);
 		const instancedFile = new InstancedFile(readFile, closeAnchor);
-		onFileRead(instancedFile);
+		try {
+			onFileRead(instancedFile, timings);
+		} finally {
+			timings.report();
+		}
 	});
 
-	reader.readAsText(file, "UTF-8");
+	stopReading = timings.start('File reading (including async wait)');
+	try {
+		reader.readAsText(file, "UTF-8");
+	} catch (error) {
+		reportReadFailure();
+		throw error;
+	}
 }
