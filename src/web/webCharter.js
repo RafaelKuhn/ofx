@@ -195,29 +195,17 @@ export const chartOfx = (ofx, chartData, readFile) => {
 
 
 /**
- * @param {ChartData} chartData
  * @param {ChartObj} chartObj
+ * @param {ChartData} chartData
  */
 export const deleteChart = (chartObj, chartData) => {
-	const indexOfChart = indexOf(chartObj, chartData.chartObjs);
+	const indexOfChart = chartData.chartObjs.indexOf(chartObj);
+	if (indexOfChart === -1) { console.error("chart not found, debug!"); return; }
+
 	chartData.chartObjs.splice(indexOfChart, 1);
 
 	chartObj.chart.canvas.remove();
 	chartObj.chart.destroy();
-}
-
-/**
- * @param {ChartData} chartData
- * @param {ChartObj} chartObj
- */
-const indexOf = (chartData, chartObj) => {
-
-	for (let i = 0; i < chartData.chartObjs; ++i) {
-		const ithChart = chartData.chartObjs[i];
-		if (ithChart.fileSymbol === chartObj.fileSymbol) return i;
-	}
-
-	return -1;
 }
 
 // TODO: data type for our version of chart
