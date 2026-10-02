@@ -1,10 +1,12 @@
+const MAX_RETAINED_MEASURES = 200;
+
 let nextRunId = 0;
 const retainedMeasures = [];
-const MAX_RETAINED_MEASURES = 200;
 
 /** Each run owns its marks so simultaneous file reads cannot collide. */
 export const createTimingRun = label => {
-	const prefix = `OFX #${++nextRunId}: ${label}`;
+	nextRunId += 1;
+	const prefix = `OFX #${nextRunId}: ${label}`;
 	const rows = [];
 	let nextStageId = 0;
 
@@ -14,24 +16,30 @@ export const createTimingRun = label => {
 		const endMark = `${name}:end`;
 		performance.mark(startMark);
 		let stopped = false;
+
 		return () => {
 			if (stopped) return;
 			stopped = true;
+
 			performance.mark(endMark);
 			const entry = performance.measure(name, startMark, endMark);
+
 			rows.push({ stage, milliseconds: Number(entry.duration.toFixed(3)) });
+
 			performance.clearMarks(startMark);
 			performance.clearMarks(endMark);
 			retainedMeasures.push(name);
+
 			if (retainedMeasures.length > MAX_RETAINED_MEASURES) {
 				performance.clearMeasures(retainedMeasures.shift());
 			}
+
 		};
 	};
 
 	return {
 		start,
-		// For synchronous functions; use start()/stop() for asynchronous work.
+
 		measure(stage, action) {
 			const stop = start(stage);
 			try {
@@ -40,10 +48,12 @@ export const createTimingRun = label => {
 				stop();
 			}
 		},
+
 		report() {
 			console.groupCollapsed(prefix);
 			console.table(rows);
 			console.groupEnd();
 		},
+
 	};
 };

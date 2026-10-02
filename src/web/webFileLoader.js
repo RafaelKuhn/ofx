@@ -120,7 +120,9 @@ const queryFile = (file, onFileRead) => {
 	templateCopy.querySelector(".name").textContent = file.name
 	const percentageSpan = templateCopy.querySelector(".percent");
 
+	let cancelled = false;
 	const deleteListItem = () => {
+		cancelled = true;
 		templateCopy.remove();
 		reader.abort();
 	}
@@ -138,7 +140,13 @@ const queryFile = (file, onFileRead) => {
 		timings.report();
 	};
 	reader.addEventListener("error", () => { reportReadFailure(); deleteListItem(); alert(`Error reading '${file.name}': ${reader.error}`); });
-	reader.addEventListener("abort", () => { reportReadFailure(); deleteListItem(); alert(`Aborted: '${file.name}'`); });
+	reader.addEventListener("abort", () => {
+		reportReadFailure();
+		if (!cancelled) {
+			deleteListItem();
+			alert(`Aborted: '${file.name}'`);
+		}
+	});
 
 	const setProgress = progressPercentage => {
 		const percentageStr = `${Math.round(progressPercentage * 100).toFixed(0)}%`
@@ -153,6 +161,7 @@ const queryFile = (file, onFileRead) => {
 
 	reader.addEventListener("load", evt => {
 		stopReading();
+		if (cancelled) return;
 		setProgress(1);
 		const fileContent = evt.target.result;
 		

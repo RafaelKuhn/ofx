@@ -3,6 +3,45 @@
 	--beige-light: #ffffe8;
 }
 
+.chart-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	margin: 1rem;
+	flex-wrap: wrap;
+}
+
+.chart-controls[hidden],
+.file-controls[hidden] {
+	display: none;
+}
+
+.chart-controls label {
+	user-select: none;
+	-webkit-user-select: none;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	cursor: pointer;
+}
+
+.file-controls {
+	margin: 1rem;
+}
+
+.file-controls button {
+	padding: 0.35rem 0.75rem;
+	font: inherit;
+	cursor: pointer;
+}
+
+.chart-controls input {
+	width: 1rem;
+	height: 1rem;
+	cursor: pointer;
+}
+
 * {
   margin: 0;
   padding: 0;

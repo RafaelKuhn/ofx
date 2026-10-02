@@ -5,15 +5,38 @@ import { Chart, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
+const USE_SHARED_CHART_MAXIMUM = true;
+
+/** Share the largest upper limit chosen by Chart.js's automatic tick rounding. */
+export const updateChartMaxima = (chartData, sharedMaximum = chartData.sharedMaximum) => {
+	chartData.sharedMaximum = sharedMaximum;
+	let maximum = -Infinity;
+	for (const { chart } of chartData.chartObjs) {
+		// Remove any previous shared cap before asking for the natural scale.
+		delete chart.options.scales.y.max;
+		chart.update('none');
+		const roundedMaximum = chart.scales.y.max;
+		if (Number.isFinite(roundedMaximum)) maximum = Math.max(maximum, roundedMaximum);
+	}
+
+	chartData.maxima = maximum;
+	// A single graph always retains exactly the same automatic scale.
+	if (!sharedMaximum || chartData.chartObjs.length < 2 || !Number.isFinite(maximum)) return;
+
+	for (const { chart } of chartData.chartObjs) {
+		chart.options.scales.y.max = maximum;
+		chart.update('none');
+	}
+};
+
 class ChartData {
 	constructor() {
+		this.sharedMaximum = USE_SHARED_CHART_MAXIMUM;
 		this.minima =  Infinity;
 		this.maxima = -Infinity;
 		/** @type {Array.<ChartObj>} */
 		this.chartObjs = [];
 	}
-
-	removeChart
 }
 
 class ChartObj {
@@ -206,6 +229,8 @@ export const deleteChart = (chartObj, chartData) => {
 
 	chartObj.chart.canvas.remove();
 	chartObj.chart.destroy();
+
+	updateChartMaxima(chartData);
 }
 
 // TODO: data type for our version of chart
@@ -223,9 +248,8 @@ const postProcessMaps = (list, chartData) => {
 		list.appendChild(chartObj.chart.canvas);
 		// chartObj.chart.options.scales.y.min = 0;
 		// chartObj.chart.options.scales.y.min = Math.max(0, chartData.minima - margin);
-		// chartObj.chart.options.scales.y.max = chartData.maxima + margin;
-		chartObj.chart.update({ duration: 0 });
 	}
+	updateChartMaxima(chartData);
 
 }
 
