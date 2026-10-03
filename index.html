@@ -51,6 +51,16 @@
 		</div>
 		</div>
 
+		<dialog id="nodeModal" class="node-modal" aria-label="Graph node details" aria-describedby="nodeModalText">
+			<p id="nodeModalText"></p>
+			<h2 class="node-transactions-heading">Transactions - description and net change</h2>
+			<ul id="nodeTransactions" class="node-transactions"></ul>
+			<p id="nodeTransactionsEmpty" hidden>No transactions on this date.</p>
+			<form method="dialog">
+				<button type="submit" autofocus>Close</button>
+			</form>
+		</dialog>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

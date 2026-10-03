@@ -2,6 +2,7 @@ import { Ofx } from "../ofxParser.js";
 import { ReadFile } from "../types.js";
 import { formatMoney, prettyCurrency } from "../utils.js";
 import { Chart, registerables } from 'chart.js';
+import { indexTransactionsByDate } from '../transactionIndex.js';
 
 Chart.register(...registerables);
 
@@ -36,6 +37,7 @@ class ChartData {
 		this.maxima = -Infinity;
 		/** @type {Array.<ChartObj>} */
 		this.chartObjs = [];
+		this.transactionsByGraph = new Map();
 	}
 }
 
@@ -81,6 +83,8 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	const start = relevantCurrency.startBalance;
 	const end = relevantCurrency.endBalance;
 	const transactions = relevantCurrency.transactions;
+	const graphId = Symbol(readFile.name);
+	const transactionsByDate = indexTransactionsByDate(transactions);
 
 	// Aggregate amounts by day (YYYY-MM-DD)
 	const dailyTotals = {};
@@ -128,6 +132,7 @@ export const chartOfx = (ofx, chartData, readFile) => {
 
 	// Sort dates chronologically
 	const sortedDates = Object.keys(dailyTotals).sort((a, b) => new Date(a) - new Date(b));
+	const dateKeys = [...sortedDates];
 	const balanceData = sortedDates.map(date => dailyTotals[date]);
 	const expenseData = sortedDates.map(date => dailyExpense[date]);
 	const incomesData = sortedDates.map(date => dailyIncomes[date]);
@@ -200,7 +205,47 @@ export const chartOfx = (ofx, chartData, readFile) => {
 						maxTicksLimit: 10
 					}
 				}
+			},
+			onClick: (event, elements, chart) => {
+				// if (elements.length == 0) console.log(`no element clicked ?`);
+				if (elements.length == 0) return;
+
+				const firstElement = elements[0];
+
+				const datasetIndex = firstElement.datasetIndex;
+				const dataIndex = firstElement.index;
+
+				const label = chart.data.labels[dataIndex];
+				const value = chart.data.datasets[datasetIndex].data[dataIndex];
+
+				const graphName = chart.options.plugins.title.text[0];
+				/** @type {HTMLDialogElement} */
+				const modal = document.getElementById('nodeModal');
+				document.getElementById('nodeModalText').textContent = `Node Clicked, Label: ${label}, Value: ${value}\ngraph: '${graphName}'`;
+
+				const dayTransactions = chartData.transactionsByGraph.get(graphId)?.get(dateKeys[dataIndex]) ?? [];
+				const transactionList = document.getElementById('nodeTransactions');
+
+				transactionList.replaceChildren();
+
+				for (const transaction of dayTransactions) {
+					const item = document.createElement('li');
+					const description = document.createElement('span');
+
+					description.textContent = transaction.description || 'No description';
+
+					const amount = document.createElement('span');
+					amount.className = 'transaction-amount';
+					amount.textContent = `${cur} ${transaction.amount > 0 ? '+' : ''}${formatMoney(transaction.amount)}`;
+
+					item.append(description, amount);
+					transactionList.append(item);
+				}
+
+				document.getElementById('nodeTransactionsEmpty').hidden = dayTransactions.length > 0;
+				if (!modal.open) modal.showModal();
 			}
+
 		}
 	});
 
@@ -209,7 +254,8 @@ export const chartOfx = (ofx, chartData, readFile) => {
 	if (localMaxima > chartData.maxima) chartData.maxima = localMaxima;
 	if (localMinima < chartData.minima) chartData.minima = localMinima;
 
-	const chartObj = new ChartObj(sortedDates[0], chart, Symbol(readFile.name));
+	const chartObj = new ChartObj(sortedDates[0], chart, graphId);
+	chartData.transactionsByGraph.set(graphId, transactionsByDate);
 	chartData.chartObjs.push(chartObj)
 	postProcessMaps(list, chartData);
 
@@ -226,6 +272,7 @@ export const deleteChart = (chartObj, chartData) => {
 	if (indexOfChart === -1) { console.error("chart not found, debug!"); return; }
 
 	chartData.chartObjs.splice(indexOfChart, 1);
+	chartData.transactionsByGraph.delete(chartObj.fileSymbol);
 
 	chartObj.chart.canvas.remove();
 	chartObj.chart.destroy();
